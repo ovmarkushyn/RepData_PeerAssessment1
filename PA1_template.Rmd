@@ -11,6 +11,7 @@ author: "OVMarkushyn"
 
 ```{r echo = TRUE}
 library( dplyr )
+library( lattice )
 ```
 
 ## Loading and preprocessing the data
@@ -18,7 +19,12 @@ library( dplyr )
 First it is necessary to load raw data from file activity.csv within root of archive activity.zip placed at current directory:
 
 ```{r echo = TRUE}
-raw <- read.csv( unz("activity.zip", "activity.csv"), header=T )
+zipfilename <- "activity.zip"
+if( !file.exists( zipfilename ) )
+{
+    stop( paste( zipfilename, "does not exist in current directory" ) )
+}
+raw <- read.csv( unz(zipfilename, "activity.csv"), header=T )
 ```
 
 Now, it worth to look at the data from different points of view:
@@ -38,7 +44,7 @@ rawnas
 Calculate percent of NAs in whole set of observations:
 ```{r echo = TRUE}
 rawnrow <- nrow(raw)
-rawnaspercent <- rawnas * 100 / rawnrow
+rawnaspercent <- round( rawnas * 100 / rawnrow, 2 )
 rawnaspercent
 ```
 
@@ -60,6 +66,7 @@ summary( tidy )
 ## What is mean total number of steps taken per day?
 ### Calculate the total number of steps taken per day
 ```{r echo = TRUE}
+# Group by date and add new variable total steps which is sum for a day
 daysteps <- group_by( tidy, date ) %>% summarize( totalsteps = sum( steps ) )
 ```
 Here are different points of view on the data:
@@ -68,18 +75,19 @@ head( daysteps )
 str( daysteps )
 ```
 
-### Histogram of the total number of steps taken each day
+### Create histogram of the total number of steps taken each day
 ```{r echo = TRUE}
-hist(daysteps$totalsteps, xlab="Total number of steps taken each day", main="Histogram of total number of steps taken each day")
+nonahist <- hist( daysteps$totalsteps, xlab="Total number of steps taken each day", main="Histogram of total number of steps taken each day")
 ```
 
+It shows that distribution between 1000 and 15000 is the biggest one.
+
 ### Calculate and report the mean and median of the total number of steps taken per day
-Calculate mean and median
 ```{r echo = TRUE}
-daystepsmean <- mean( daysteps$totalsteps )
-daystepsmedian <- median( daysteps$totalsteps )
+daystepsmean <- round( mean( daysteps$totalsteps ), 2 )
+daystepsmedian <- round( median( daysteps$totalsteps ), 2 )
 ```
-Mean is `r sprintf( "%.3f", daystepsmean )` and median is `r daystepsmedian`
+Mean is `r sprintf( "%.2f", daystepsmean )` and median is `r sprintf( "%.2f", daystepsmedian )`
 
 ## What is the average daily activity pattern?
 ### Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
@@ -90,6 +98,11 @@ The data will have two variables: interval as POSIXct and steps average across a
 Add new variable which is interval represented as POSIXct (the same date is used).
 Example: interval is 1205 - new variable is "DATE 12:05".
 ```{r echo = TRUE}
+# The interval itself is just hours and minutes represented as int.
+# So it worth to make it as POSIXct for nice plot looking
+# Hours are taken by division on 100 and truncing decimal part
+# Minutes are obtained with special operator %%
+# %% - http://en.wikipedia.org/wiki/Modulo_operation
 tidy <- mutate( tidy, posixctinterval=as.POSIXct( paste0( trunc( interval / 100, 0 ), ":", interval %% 100 ) , "%H:%M", tz="GMT" ) )
 ```
 
@@ -106,23 +119,81 @@ plot( iavg$posixctinterval, iavg$stepsavg, type = "l",
 
 ```
 
+The plot shows that the most active interval is between 8 and 9 hours.
+
 ### Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
 ```{r echo = TRUE}
 format( iavg[iavg$stepsavg==max(iavg$stepsavg), ]$posixctinterval, "%H:%M" )
 ```
 
 ## Imputing missing values
-Total number of missing values in the dataset (i.e. the total number of rows with NAs) is `r  rawnas`
+Total number of missing values in the dataset (i.e. the total number of rows with NAs) is `r  rawnas` which is `r  rawnaspercent`%
 
-### Devise a strategy for filling in all of the missing values in the dataset
+### Fill missing values with average per interval across all days.
+Create a set with 2 variables interval and its average.
+These data are fill values for missing values and they will be merged with raw data set .
+```{r echo = TRUE}
+# Prepare averages per interval basing on data set where NA are absent to avoid inadequate averages.
+na <- raw[is.na(raw$steps),]
+tidyiavg <- group_by( tidy, interval ) %>% summarize( avg = round( mean( steps ), 0 ) )
+```
 
+Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r echo = TRUE}
+# Merge raw data with averages per interval
+nafill <- merge( raw, tidyiavg, by.x = c( "interval" ), by.y = c( "interval" ) )
+# Set only NA values with averages. The trick appears to be correct. I checked the data and it looked as only NA values were changed.
+nafill[ is.na( nafill$steps ),] <- mutate( nafill[ is.na( nafill$steps ), ], steps = avg )
+```
 
-### Create a new dataset that is equal to the original dataset but with the missing data filled in
-### Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+Make a histogram of the total number of steps taken each day 
+```{r echo = TRUE}
+# Sum steps per day for the ste where NA values are filled in
+nafilldaysteps <- group_by( nafill, date ) %>% summarize( totalsteps = sum( steps ) )
+nafillhist <- hist(nafilldaysteps$totalsteps, xlab="Total number of steps taken each day", main="Histogram of total number of steps taken each day (NA are filled in)")
+```
+
+Calculate and report the mean and median total number of steps taken per day
+```{r echo = TRUE}
+nafilldaystepsmean <- round( mean( nafilldaysteps$totalsteps ), 2 )
+nafilldaystepsmedian <- round( median( nafilldaysteps$totalsteps ), 2 )
+```
+In case NA are replaced with values mean is `r sprintf( "%.2f", nafilldaystepsmean )` and median is `r sprintf( "%.2f", nafilldaystepsmedian )` but in first case mean was `r sprintf( "%.2f", daystepsmean )` and median was `r sprintf( "%.2f", daystepsmedian )`
+
+These values differ a little bit from previous case where NA were removed. 
+Here is comparison histogram of the both. The comparison shows that distribution between 10000 and 15000 in second case is bigger.
+```{r echo = TRUE}
+# density = 20 - allows to have the line kind bar
+plot( nafillhist, col="red", density = 20, angle = 90, xlab="Total number of steps taken each day", main="Histograms comparison")
+plot( nonahist, col="green", density = 20, angle = 180, add=T )
+legend("topright", legend = c("FILLED NA", "WITHOUT NA" ), 
+       pch = c( "|", "-" ),
+       col = c( "red", "green" ) )
+```
+
 
 ## Are there differences in activity patterns between weekdays and weekends?
-### Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day
-### Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated data
+To answer the question it is necessary to create a new factor variable in the dataset with two levels weekday and weekend indicating whether a given date is a weekday or weekend day
+```{r echo = TRUE}
+# Add variable contaning week day like Monday, Tuesday etc.
+tidy <- mutate( tidy, weekday = weekdays( as.POSIXct( date, tz = "GMT", format = "%Y-%m-%d" ), abbreviate = F ) )
+# Add new variable contaning week part type like weekday or weekend basing on previous variable
+tidy[tidy$weekday == "Saturday" | tidy$weekday == "Sunday", "weekparttype" ] <- "weekend"
+tidy[!(tidy$weekday == "Saturday" | tidy$weekday == "Sunday"), "weekparttype" ] <- "weekday"
+# Make the variable factorized to use it during multi panel plot creation (it will hav two panels weekend and weekday)
+tidy$weekparttype <- factor( tidy$weekparttype )
 
+# Prepare data for the multi panel plot
+iweekpartavg<-group_by( tidy, weekparttype, interval ) %>% summarize( stepsavg = mean( steps ) )
+```
 
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+```{r echo = TRUE}
+xyplot( data = iweekpartavg, stepsavg ~ interval | weekparttype, layout=c(1,2), type='l',    xlab="Interval", ylab="Average", main="Weekday to weekend interval average acrosss all days comparison")
+```
+
+The plot shows that the the peek of the activity is bigger on weekdays in comparison with weekend.
+Possible reason is necessity to go for a long distance to a work.
+Additionally, on weekday activity start earlier then on weekend. It may mean that on weekend people allow themselves to get up later.
+And finally, after the pick, activity is bigger on weekend then on weekday. Possible reason is necessity to sit down during the work day and walking during weekend.
 
