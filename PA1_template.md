@@ -190,7 +190,7 @@ nonahist <- hist( daysteps$totalsteps, xlab="Total number of steps taken each da
 
 ![plot of chunk unnamed-chunk-10](figure/unnamed-chunk-10-1.png) 
 
-It shows that distribution between 1000 and 15000 is the biggest one.
+It shows that distribution between 10000 and 15000 is the biggest one.
 
 ### Calculate and report the mean and median of the total number of steps taken per day
 
@@ -271,7 +271,7 @@ nafill[ is.na( nafill$steps ),] <- mutate( nafill[ is.na( nafill$steps ), ], ste
 Make a histogram of the total number of steps taken each day 
 
 ```r
-# Sum steps per day for the ste where NA values are filled in
+# Sum steps per day for the set where NA values are filled in
 nafilldaysteps <- group_by( nafill, date ) %>% summarize( totalsteps = sum( steps ) )
 nafillhist <- hist(nafilldaysteps$totalsteps, xlab="Total number of steps taken each day", main="Histogram of total number of steps taken each day (NA are filled in)")
 ```
@@ -284,7 +284,7 @@ Calculate and report the mean and median total number of steps taken per day
 nafilldaystepsmean <- round( mean( nafilldaysteps$totalsteps ), 2 )
 nafilldaystepsmedian <- round( median( nafilldaysteps$totalsteps ), 2 )
 ```
-In case NA are replaced with values mean is 10765.64 and median is 10762.00 but in first case mean was 10766.19 and median was 10765.00
+In case NA are replaced with values mean is 10765.64 and median is 10762.00 but in the first case mean was 10766.19 and median was 10765.00
 
 These values differ a little bit from previous case where NA were removed. 
 Here is comparison histogram of the both. The comparison shows that distribution between 10000 and 15000 in second case is bigger.
